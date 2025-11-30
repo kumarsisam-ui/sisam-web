@@ -5,9 +5,30 @@ import { API_BASE } from "./api";
 const buildImageUrl = (raw) => {
   if (!raw) return "";
   const url = String(raw).trim();
+  if (!url) return "";
 
-  if (url.startsWith("http://") || url.startsWith("https://")) return url;
-  if (url.startsWith("/")) return `${API_BASE}${url}`;
+  if (
+    url.startsWith("http://127.0.0.1") ||
+    url.startsWith("https://127.0.0.1") ||
+    url.startsWith("http://localhost") ||
+    url.startsWith("https://localhost")
+  ) {
+    try {
+      const u = new URL(url);
+      return `${API_BASE}${u.pathname}${u.search}`;
+    } catch {
+      const withoutHost = url.replace(/^https?:\/\/[^/]+/, "");
+      return `${API_BASE}${withoutHost}`;
+    }
+  }
+
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+
+  if (url.startsWith("/")) {
+    return `${API_BASE}${url}`;
+  }
   return `${API_BASE}/${url}`;
 };
 
@@ -19,7 +40,7 @@ export default function StoriesBar({
 }) {
   const list = Array.isArray(stories) ? stories : [];
 
-  // Show at most one (latest) story per user in the bar
+  // latest story per user
   const byUser = {};
   for (const s of list) {
     const username = s.user?.username || "user";
@@ -32,12 +53,11 @@ export default function StoriesBar({
       if (newTime > prevTime) byUser[username] = s;
     }
   }
-
   const storyList = Object.values(byUser);
 
   return (
     <div className="stories-bar">
-      {/* + ADD STORY (uses hidden input with id="story-upload-input") */}
+      {/* + ADD STORY */}
       {currentUser && (
         <div
           className="story-circle add-story-circle"

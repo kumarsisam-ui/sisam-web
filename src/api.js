@@ -3,6 +3,7 @@ import axios from "axios";
 
 // Base URL for the backend API
 // In Vercel, REACT_APP_API_BASE is set.
+// Locally you can still use 127.0.0.1:8000 if no env is set.
 
 export const API_BASE =
   process.env.REACT_APP_API_BASE || "https://sisam-backend.onrender.com";

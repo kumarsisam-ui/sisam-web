@@ -2,29 +2,48 @@
 import React, { useEffect, useState } from "react";
 import { likePost, getComments, addComment, API_BASE } from "./api";
 
+const buildImageUrl = (raw) => {
+  if (!raw) return "";
+  const url = String(raw).trim();
+  if (!url) return "";
+
+  // 1) If it came from local dev DB (127.0.0.1 / localhost), rewrite to API_BASE
+  if (
+    url.startsWith("http://127.0.0.1") ||
+    url.startsWith("https://127.0.0.1") ||
+    url.startsWith("http://localhost") ||
+    url.startsWith("https://localhost")
+  ) {
+    try {
+      const u = new URL(url);
+      return `${API_BASE}${u.pathname}${u.search}`;
+    } catch {
+      // if parsing fails, just drop host and use as path
+      const withoutHost = url.replace(/^https?:\/\/[^/]+/, "");
+      return `${API_BASE}${withoutHost}`;
+    }
+  }
+
+  // 2) Already points to our backend or some other absolute URL
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+
+  // 3) Relative path
+  if (url.startsWith("/")) {
+    return `${API_BASE}${url}`;
+  }
+  return `${API_BASE}/${url}`;
+};
+
 export default function PostCard({ post, currentUser, onOpenProfile }) {
   const [likes, setLikes] = useState(post.like_count || 0);
   const [hasLiked, setHasLiked] = useState(post.has_liked || false);
-
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
   const [commentStatus, setCommentStatus] = useState("");
 
   const authorUsername = post.user?.username || "user";
-
-  // ---------- helpers ----------
-
-  const buildImageUrl = (raw) => {
-    if (!raw) return "";
-    const url = String(raw).trim();
-
-    // Already absolute
-    if (url.startsWith("http://") || url.startsWith("https://")) return url;
-
-    // Relative path from backend
-    if (url.startsWith("/")) return `${API_BASE}${url}`;
-    return `${API_BASE}/${url}`;
-  };
 
   const loadComments = async () => {
     try {
@@ -40,8 +59,6 @@ export default function PostCard({ post, currentUser, onOpenProfile }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [post.id]);
 
-  // ---------- actions ----------
-
   const handleLike = async () => {
     try {
       const data = await likePost(post.id);
@@ -53,8 +70,6 @@ export default function PostCard({ post, currentUser, onOpenProfile }) {
       }
     } catch (err) {
       console.error("Like error:", err);
-      // Optional tiny status instead of alert:
-      // setCommentStatus("Failed to like post.");
     }
   };
 
@@ -71,8 +86,6 @@ export default function PostCard({ post, currentUser, onOpenProfile }) {
       setCommentStatus("Failed to add comment.");
     }
   };
-
-  // ---------- render ----------
 
   return (
     <div className="post-card">
