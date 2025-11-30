@@ -1,17 +1,25 @@
 // src/StoriesBar.jsx
 import React from "react";
+import { API_BASE } from "./api";
+
+function getFullUrl(path) {
+  if (!path) return null;
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    return path;
+  }
+  // For paths like "/uploads/abc.jpg"
+  return `${API_BASE}${path}`;
+}
 
 function StoriesBar({ stories = [], currentUser }) {
   const handleAddStory = () => {
-    // We already have upload story UI on the right side,
-    // so here we can just scroll to it or later open a modal.
     const el = document.getElementById("create-story-panel");
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   };
 
   return (
     <div className="stories-bar">
-      {/* Your story (add story) */}
+      {/* Your story (add story button) */}
       <button className="story-item story-add" onClick={handleAddStory}>
         <div className="story-avatar add-avatar">+</div>
         <div className="story-username">
@@ -27,14 +35,19 @@ function StoriesBar({ stories = [], currentUser }) {
           story.author_username ||
           "user";
 
-        const imageUrl =
-          story.image_url || story.media_url || story.url || story.photo_url;
+        const rawImage =
+          story.image_url ||
+          story.media_url ||
+          story.url ||
+          story.photo_url;
+
+        const imgSrc = getFullUrl(rawImage);
 
         return (
           <div className="story-item" key={story.id}>
             <div className="story-avatar">
-              {imageUrl ? (
-                <img src={imageUrl} alt={username + " story"} />
+              {imgSrc ? (
+                <img src={imgSrc} alt={`${username} story`} />
               ) : (
                 <span>{username[0]?.toUpperCase()}</span>
               )}
