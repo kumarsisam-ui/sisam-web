@@ -3,38 +3,43 @@ import axios from "axios";
 
 // Base URL for the backend API
 // In Vercel, REACT_APP_API_BASE is set.
-// Fallback to the Render backend URL (NOT 127.0.0.1).
+
 export const API_BASE =
   process.env.REACT_APP_API_BASE || "https://sisam-backend.onrender.com";
 
 // ---------- MEDIA URL NORMALIZER ----------
 // Make sure any stored image path or URL works against the deployed backend.
 export function normalizeMediaUrl(path) {
-  if (!path) return null;
-  if (typeof path !== "string") return null;
+  if (!path || typeof path !== "string") return null;
 
   const trimmed = path.trim();
   if (!trimmed) return null;
 
-  try {
-    // Case 1: full URL (http://..., https://...)
-    const u = new URL(trimmed);
-    // Force it to use our backend host, but keep the path/query
-    return `${API_BASE}${u.pathname}${u.search}`;
-  } catch {
-    // Case 2: relative path or filename
-
-    // If it already starts with "/", just stick API_BASE in front:
-    //   "/uploads/xyz.jpg"  ->  "https://sisam-backend.onrender.com/uploads/xyz.jpg"
-    if (trimmed.startsWith("/")) {
-      return `${API_BASE}${trimmed}`;
-    }
-
-    // Otherwise just prefix a "/" and API_BASE:
-    //   "uploads/xyz.jpg"   ->  "https://sisam-backend.onrender.com/uploads/xyz.jpg"
-    //   "xyz.jpg"           ->  "https://sisam-backend.onrender.com/xyz.jpg"
-    return `${API_BASE}/${trimmed}`;
+  // 1) If the string contains "/uploads/..." anywhere, always use that tail.
+  const uploadsIndex = trimmed.indexOf("/uploads/");
+  if (uploadsIndex !== -1) {
+    const tail = trimmed.slice(uploadsIndex); // e.g. "/uploads/xyz.jpg"
+    return `${API_BASE}${tail}`;
   }
+
+  // 2) Full URL (http/https) but without "/uploads/" – just rehost it on API_BASE
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    try {
+      const u = new URL(trimmed);
+      return `${API_BASE}${u.pathname}${u.search}`;
+    } catch {
+      // fall through to relative handling
+    }
+  }
+
+  // 3) Starts with "/" but no "/uploads/": just prefix API_BASE.
+  if (trimmed.startsWith("/")) {
+    return `${API_BASE}${trimmed}`;
+  }
+
+  // 4) Everything else: treat as relative file name or "uploads/xyz.jpg"
+  //    This covers "uploads/xyz.jpg" and "xyz.jpg"
+  return `${API_BASE}/${trimmed}`;
 }
 // ------------- AUTH TOKEN HANDLING -------------
 let authToken = null;
