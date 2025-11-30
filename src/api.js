@@ -4,7 +4,25 @@ import axios from "axios";
 // In production, Vercel sets REACT_APP_API_BASE.
 // Locally you can still use 127.0.0.1:8000 if no env is set.
 export const API_BASE =
-  process.env.REACT_APP_API_BASE || "http://127.0.0.1:8000";
+  process.env.REACT_APP_API_BASE || "https://sisam-backend.onrender.com";
+// Turn any stored image URL into a URL that works with the deployed backend
+export function normalizeMediaUrl(path) {
+  if (!path) return null;
+
+  try {
+    // Full URL? (e.g. http://127.0.0.1:8000/uploads/xyz.jpg)
+    const u = new URL(path);
+    // Keep just path + query, but on our API_BASE host
+    return `${API_BASE}${u.pathname}${u.search}`;
+  } catch {
+    // Not a full URL: maybe "/uploads/xyz.jpg"
+    if (path.startsWith("/")) {
+      return `${API_BASE}${path}`;
+    }
+    // Already some other URL string – just return as is
+    return path;
+  }
+}
 
 // ---------------- AUTH TOKEN HANDLING ----------------
 

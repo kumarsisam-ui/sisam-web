@@ -1,14 +1,6 @@
 // src/PostCard.jsx
 import React, { useState } from "react";
-import { API_BASE, likePost, addComment } from "./api";
-
-function getFullUrl(path) {
-  if (!path) return null;
-  if (path.startsWith("http://") || path.startsWith("https://")) {
-    return path;
-  }
-  return `${API_BASE}${path}`;
-}
+import { likePost, addComment, normalizeMediaUrl } from "./api";
 
 function PostCard({ post, currentUser }) {
   const username =
@@ -18,7 +10,7 @@ function PostCard({ post, currentUser }) {
 
   const rawImage =
     post.image_url || post.media_url || post.photo_url || post.url;
-  const imgSrc = getFullUrl(rawImage);
+  const imgSrc = normalizeMediaUrl(rawImage);
 
   const [liked, setLiked] = useState(
     post.liked_by_current_user || post.is_liked || false
@@ -35,15 +27,12 @@ function PostCard({ post, currentUser }) {
 
   const handleLike = async () => {
     if (!post.id || busy) return;
-
     setBusy(true);
     try {
-      // Optimistic toggle
+      // optimistic toggle
       setLiked((prev) => !prev);
       setLikes((prev) => prev + (liked ? -1 : 1));
-
       await likePost(post.id);
-      // If your API returns updated count you could use it here
     } catch (err) {
       console.error("Like failed", err);
       // revert on error
@@ -63,11 +52,10 @@ function PostCard({ post, currentUser }) {
       const text = commentText.trim();
       setCommentText("");
 
-      let newComment = null;
+      let newComment;
       try {
         newComment = await addComment(post.id, text);
       } catch {
-        // If backend doesn’t return comment object, create a local one
         newComment = {
           id: Math.random().toString(36).slice(2),
           username: currentUser || "you",

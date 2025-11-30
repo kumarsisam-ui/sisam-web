@@ -1,15 +1,6 @@
 // src/StoriesBar.jsx
 import React from "react";
-import { API_BASE } from "./api";
-
-function getFullUrl(path) {
-  if (!path) return null;
-  if (path.startsWith("http://") || path.startsWith("https://")) {
-    return path;
-  }
-  // For paths like "/uploads/abc.jpg"
-  return `${API_BASE}${path}`;
-}
+import { normalizeMediaUrl } from "./api";
 
 function StoriesBar({ stories = [], currentUser }) {
   const handleAddStory = () => {
@@ -19,7 +10,7 @@ function StoriesBar({ stories = [], currentUser }) {
 
   return (
     <div className="stories-bar">
-      {/* Your story (add story button) */}
+      {/* Your story (add story) */}
       <button className="story-item story-add" onClick={handleAddStory}>
         <div className="story-avatar add-avatar">+</div>
         <div className="story-username">
@@ -41,7 +32,7 @@ function StoriesBar({ stories = [], currentUser }) {
           story.url ||
           story.photo_url;
 
-        const imgSrc = getFullUrl(rawImage);
+        const imgSrc = normalizeMediaUrl(rawImage);
 
         return (
           <div className="story-item" key={story.id}>
