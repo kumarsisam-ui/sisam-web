@@ -1,589 +1,267 @@
 // src/App.js
 import React, { useEffect, useState } from "react";
+import "./App.css";
 import {
-  login,
-  clearAuthToken,
+  API_BASE,
   getFeed,
   getStories,
-  getProfile,
-  followUser,
-  unfollowUser,
   getNotifications,
-  markNotificationRead,
+  getConversations,
   searchAll,
+  clearAuthToken,
 } from "./api";
 
-import PostCard from "./PostCard";
-import MessagesPanel from "./MessagesPanel";
-import StoryUpload from "./StoryUpload";
-import UploadForm from "./UploadForm";
-import StoriesBar from "./StoriesBar";
-import ProfileEdit from "./ProfileEdit";
+import StoriesBar from "./StoriesBar.jsx";
+import UploadForm from "./UploadForm.jsx";
+import MessagesPanel from "./MessagesPanel.jsx";
+import PostCard from "./PostCard.jsx";
+import ProfileEdit from "./ProfileEdit.jsx";
+import LoginForm from "./LoginForm.jsx";
 
-import "./App.css";
-
-export default function App() {
-  const [currentUser, setCurrentUser] = useState(null);
+function App() {
+  const [currentUser, setCurrentUser] = useState(
+    typeof localStorage !== "undefined"
+      ? localStorage.getItem("username")
+      : null
+  );
+  const [theme, setTheme] = useState(
+    typeof localStorage !== "undefined"
+      ? localStorage.getItem("theme") || "dark"
+      : "dark"
+  );
   const [feed, setFeed] = useState([]);
   const [stories, setStories] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  const [searchResults, setSearchResults] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState(null);
+  const [selectedProfile, setSelectedProfile] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const [loginData, setLoginData] = useState({ username: "", password: "" });
-  const [status, setStatus] = useState("");
-
-  const [viewingProfile, setViewingProfile] = useState(null);
-  const [profileData, setProfileData] = useState(null);
-
-  const [showNotifDropdown, setShowNotifDropdown] = useState(false);
-  const [showChatDropdown, setShowChatDropdown] = useState(false);
-
-  // which user’s chat is open
-  const [chatUser, setChatUser] = useState(null);
-
-  // 🌗 theme: "light" or "dark"
-  const [theme, setTheme] = useState("dark");
-
-  const loggedIn = !!currentUser;
-
-  // ---------- REHYDRATE LOGIN STATE ON PAGE LOAD ----------
+  // ---------------- THEME ----------------
 
   useEffect(() => {
-    try {
-      const storedToken = localStorage.getItem("token");
-      if (storedToken) {
-        // In this app, token === username
-        setCurrentUser(storedToken);
-      }
-    } catch {
-      // ignore
+    document.body.classList.toggle("light-theme", theme === "light");
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("theme", theme);
     }
-  }, []);
-
-  // ---------- THEME EFFECT ----------
-
-  useEffect(() => {
-    document.body.classList.remove("theme-light", "theme-dark");
-    document.body.classList.add(theme === "dark" ? "theme-dark" : "theme-light");
   }, [theme]);
 
   const toggleTheme = () => {
-    setTheme((t) => (t === "light" ? "dark" : "light"));
+    setTheme((t) => (t === "dark" ? "light" : "dark"));
   };
 
-  // ---------- LOADERS ----------
+  // ---------------- DATA LOAD ----------------
 
-  const loadFeed = async () => {
-    try {
-      const data = await getFeed();
-      setFeed(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Feed error:", err);
-    }
-  };
-
-  const loadStories = async () => {
-    try {
-      const data = await getStories();
-      setStories(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Stories error:", err);
-    }
-  };
-
-  const loadNotifications = async () => {
-    if (!loggedIn) return;
-    try {
-      const data = await getNotifications();
-      setNotifications(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Notifications error:", err);
-    }
-  };
-
-  // Faster periodic refresh (feed + stories + notifications)
   useEffect(() => {
-    if (loggedIn) {
-      // Initial load
-      loadFeed();
-      loadStories();
-      loadNotifications();
+    if (!currentUser) return;
 
-      const interval = setInterval(() => {
-        loadFeed();
-        loadStories();
-        loadNotifications();
-      }, 3000); // every 3 seconds
-
-      return () => clearInterval(interval);
-    } else {
-      setFeed([]);
-      setStories([]);
-      setNotifications([]);
-      setChatUser(null);
-    }
-  }, [loggedIn]);
-
-  // ---------- AUTH ----------
-
-  const handleLogin = async () => {
-    try {
-      setStatus("");
-      const res = await login(loginData.username, loginData.password);
-      if (res?.token) {
-        const usernameFromBackend = res.username || loginData.username;
-
-        setCurrentUser(usernameFromBackend);
-        setStatus("Logged in!");
-
-        try {
-          localStorage.setItem("token", res.token);
-        } catch {
-          // ignore
-        }
-
-        await loadFeed();
-        await loadStories();
-        await loadNotifications();
-      } else {
-        setStatus("❌ Invalid login response");
+    async function loadAll() {
+      try {
+        setLoading(true);
+        const [feedData, storiesData, notifData, convosData] =
+          await Promise.all([
+            getFeed(),
+            getStories(),
+            getNotifications(),
+            getConversations(),
+          ]);
+        setFeed(feedData || []);
+        setStories(storiesData || []);
+        setNotifications(notifData || []);
+        setConversations(convosData || []);
+      } catch (err) {
+        console.error("Error loading initial data", err);
+      } finally {
+        setLoading(false);
       }
+    }
+
+    loadAll();
+  }, [currentUser]);
+
+  // ---------------- SEARCH ----------------
+
+  const handleSearch = async () => {
+    const q = searchQuery.trim();
+    if (!q) {
+      setSearchResults(null);
+      return;
+    }
+
+    try {
+      const results = await searchAll(q);
+      setSearchResults(results);
     } catch (err) {
-      console.error(err);
-      setStatus("❌ Invalid username or password");
+      console.error("Search failed", err);
     }
   };
+
+  const handleSearchKey = (e) => {
+    if (e.key === "Enter") {
+      handleSearch();
+    }
+  };
+
+  // ---------------- AUTH ----------------
 
   const handleLogout = () => {
     clearAuthToken();
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem("username");
+    }
     setCurrentUser(null);
-    setViewingProfile(null);
-    setProfileData(null);
     setFeed([]);
     setStories([]);
     setNotifications([]);
-    setStatus("");
-    setShowNotifDropdown(false);
-    setShowChatDropdown(false);
-    setChatUser(null);
+    setConversations([]);
+    setSearchResults(null);
   };
 
-  // ---------- PROFILE ----------
-
-  const openProfile = async (username) => {
-    try {
-      let data = null;
-
-      // Try backend profile endpoint
-      try {
-        data = await getProfile(username);
-      } catch (err) {
-        console.error("getProfile failed, falling back to local data:", err);
-      }
-
-      // Fallback: build a minimal profile from feed posts
-      if (!data) {
-        const userPosts = feed.filter(
-          (p) => p.user && p.user.username === username
-        );
-        data = {
-          username,
-          full_name: "",
-          followers_count: 0,
-          following_count: 0,
-          is_following: false,
-          posts: userPosts,
-        };
-      }
-
-      setProfileData(data || null);
-      setViewingProfile(username);
-    } catch (err) {
-      console.error("openProfile error:", err);
-    }
+  const handleLoginSuccess = (username) => {
+    setCurrentUser(username);
   };
 
-  const handleProfileUpdated = (updatedProfile) => {
-    setProfileData(updatedProfile);
-  };
+  // ---------------- RENDER HELPERS ----------------
 
-  const toggleFollow = async () => {
-    if (!profileData) return;
-    try {
-      if (profileData.is_following) {
-        await unfollowUser(profileData.username);
-      } else {
-        await followUser(profileData.username);
-      }
+  const unreadNotifications = notifications.filter((n) => !n.is_read).length;
+  const unreadMessages = conversations.filter((c) => c.unread_count > 0).length;
 
-      // Refresh full profile + notifications
-      try {
-        const updated = await getProfile(profileData.username);
-        setProfileData(updated || profileData);
-      } catch (err) {
-        console.error("Refresh profile after follow failed:", err);
-        setProfileData({
-          ...profileData,
-          is_following: !profileData.is_following,
-        });
-      }
+  // ---------------- MAIN RENDER ----------------
 
-      await loadNotifications();
-    } catch (err) {
-      console.error("Follow error:", err);
-    }
-  };
+  if (!currentUser) {
+    return (
+      <div className={`app-root ${theme}`}>
+        <header className="top-bar gradient-bar">
+          <div className="logo">Sisam</div>
+          <div className="search-wrapper">
+            <input
+              className="search-input"
+              placeholder="Search users or posts..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKey}
+            />
+            <button className="search-button" onClick={handleSearch}>
+              Search
+            </button>
+          </div>
+          <div className="top-actions">
+            <button className="pill-button" onClick={() => setTheme("light")}>
+              Home
+            </button>
+          </div>
+        </header>
 
-  // ---------- SEARCH ----------
-
-  const handleSearchChange = async (e) => {
-    const q = e.target.value;
-    if (!q.trim()) {
-      setSearchResults([]);
-      return;
-    }
-    try {
-      const data = await searchAll(q.trim());
-      setSearchResults(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error("Search error:", err);
-    }
-  };
-
-  const handleSearchClickUser = (username) => {
-    setSearchResults([]);
-    openProfile(username);
-  };
-
-  // ---------- NOTIFICATIONS ----------
-
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
-  const messageNotifs = notifications.filter((n) => n.type === "message");
-  const unreadChatCount = messageNotifs.filter((n) => !n.is_read).length;
-
-  const readNotif = async (id) => {
-    try {
-      await markNotificationRead(id);
-      await loadNotifications();
-    } catch (err) {
-      console.error("Mark notification read failed:", err);
-    }
-  };
-
-  // ---------- STORIES: + button ----------
-
-  const handleAddStoryClick = () => {
-    const input = document.getElementById("story-upload-input");
-    if (input) input.click();
-  };
-
-  // ---------- POST callbacks ----------
-
-  const handlePostLiked = async () => {
-    await loadNotifications();
-  };
-
-  // ---------- MESSAGES callbacks ----------
-
-  const handleNewMessage = async () => {
-    await loadNotifications();
-  };
-
-  const openChatFromHeader = (username) => {
-    setChatUser(username);
-    // scroll Messages panel into view like Messenger
-    const panel = document.getElementById("messages-panel");
-    if (panel) {
-      panel.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-  };
-
-  // ---------- RENDER ----------
+        <main className="main-layout">
+          <div className="center-column">
+            <LoginForm onLogin={handleLoginSuccess} />
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
-    <div className={`App ${theme === "dark" ? "App-dark" : "App-light"}`}>
-      {/* HEADER */}
-      <header className="top-bar">
+    <div className={`app-root ${theme}`}>
+      {/* TOP BAR */}
+      <header className="top-bar gradient-bar">
         <div className="logo">Sisam</div>
 
-        <input
-          className="search"
-          placeholder="Search users or posts..."
-          onChange={handleSearchChange}
-        />
+        {/* SEARCH + BUTTON */}
+        <div className="search-wrapper">
+          <input
+            className="search-input"
+            placeholder="Search users or posts..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={handleSearchKey}
+          />
+          <button className="search-button" onClick={handleSearch}>
+            Search
+          </button>
+        </div>
 
-        <div className="nav-items">
-          <button
-            onClick={() => {
-              setViewingProfile(null);
-              setProfileData(null);
-              loadFeed();
-            }}
-          >
-            Home
+        {/* RIGHT BUTTONS */}
+        <div className="top-actions">
+          <button className="pill-button">Home</button>
+          <button className="pill-button">Explore</button>
+
+          <button className="pill-button" onClick={toggleTheme}>
+            {theme === "dark" ? "☀ Light" : "🌙 Dark"}
           </button>
 
-          <button
-            onClick={() => {
-              setViewingProfile(null);
-              setProfileData(null);
-              loadFeed();
-              loadStories();
-            }}
-          >
-            Explore
+          <button className="icon-pill">
+            💬 <span className="badge">{unreadMessages}</span>
+          </button>
+          <button className="icon-pill">
+            🔔 <span className="badge">{unreadNotifications}</span>
           </button>
 
-          {/* Theme toggle */}
-          <button type="button" onClick={toggleTheme}>
-            {theme === "light" ? "🌙 Dark" : "☀ Light"}
+          <span className="current-user">@{currentUser}</span>
+          <button className="pill-button logout" onClick={handleLogout}>
+            Logout
           </button>
-
-          {/* CHAT ICON like Facebook Messenger */}
-          {loggedIn && (
-            <div className="chat-wrapper">
-              <button
-                type="button"
-                className="chat-btn"
-                onClick={() => {
-                  setShowChatDropdown((open) => !open);
-                  setShowNotifDropdown(false);
-                }}
-              >
-                💬 {unreadChatCount}
-              </button>
-
-              {showChatDropdown && (
-                <div className="chat-dropdown">
-                  {messageNotifs.length === 0 && (
-                    <div className="chat-item chat-empty">
-                      No new messages
-                    </div>
-                  )}
-
-                  {messageNotifs.map((n) => (
-                    <div
-                      key={n.id}
-                      className={`chat-item ${n.is_read ? "read" : ""}`}
-                      onClick={async () => {
-                        if (n.actor && n.actor.username) {
-                          openChatFromHeader(n.actor.username);
-                        }
-                        await readNotif(n.id);
-                        setShowChatDropdown(false);
-                      }}
-                    >
-                      <div className="chat-item-avatar">
-                        {n.actor?.username?.[0]?.toUpperCase() || "U"}
-                      </div>
-                      <div className="chat-item-text">
-                        <div className="chat-item-username">
-                          @{n.actor?.username || "user"}
-                        </div>
-                        <div className="chat-item-message">{n.message}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* NOTIFICATION BELL */}
-          {loggedIn && (
-            <div className="notif-wrapper">
-              <button
-                type="button"
-                className="notif-btn"
-                onClick={() => {
-                  setShowNotifDropdown((open) => !open);
-                  setShowChatDropdown(false);
-                }}
-              >
-                🔔 {unreadCount}
-              </button>
-
-              {showNotifDropdown && (
-                <div className="notif-dropdown">
-                  {notifications.length === 0 && (
-                    <div className="notif-item notif-empty">
-                      No notifications
-                    </div>
-                  )}
-
-                  {notifications.map((n) => (
-                    <div
-                      key={n.id}
-                      className={`notif-item ${n.is_read ? "read" : ""}`}
-                      onClick={async () => {
-                        await readNotif(n.id);
-                        setShowNotifDropdown(false);
-                        if (n.type === "message" && n.actor?.username) {
-                          openChatFromHeader(n.actor.username);
-                        }
-                      }}
-                    >
-                      {n.actor?.username
-                        ? `@${n.actor.username} ${n.message}`
-                        : n.message}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {loggedIn && <span>@{currentUser}</span>}
-
-          {loggedIn && (
-            <button type="button" onClick={handleLogout}>
-              Logout
-            </button>
-          )}
         </div>
       </header>
 
-      {/* SEARCH RESULTS DROPDOWN */}
-      {searchResults.length > 0 && (
-        <div className="search-results">
-          {searchResults.map((item, idx) => (
-            <div
-              key={idx}
-              className="search-item"
-              onClick={() => handleSearchClickUser(item.username)}
-            >
-              @{item.username}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* LOGIN BOX (when logged out) */}
-      {!loggedIn && (
-        <div className="login-box">
-          <h3>Login</h3>
-          <input
-            placeholder="Username"
-            value={loginData.username}
-            onChange={(e) =>
-              setLoginData({ ...loginData, username: e.target.value })
-            }
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={loginData.password}
-            onChange={(e) =>
-              setLoginData({ ...loginData, password: e.target.value })
-            }
-          />
-          <button type="button" onClick={handleLogin}>
-            Login
-          </button>
-          {status && <p className="status">{status}</p>}
-        </div>
-      )}
-
-      {/* MAIN LAYOUT */}
-      <div className="page-layout">
-        {/* LEFT: STORIES + FEED / PROFILE */}
-        <main className="main-feed">
+      {/* LAYOUT */}
+      <main className="main-layout">
+        <section className="left-column">
           <StoriesBar
             stories={stories}
             currentUser={currentUser}
-            onOpenProfile={openProfile}
-            onAddStoryClick={handleAddStoryClick}
+            onStoryUpload={() => {
+              // reload stories after upload if you want
+            }}
           />
 
-          {viewingProfile && profileData ? (
-            <div className="profile-view">
-              <h2>@{profileData.username}</h2>
-              <p>{profileData.full_name}</p>
-              <p>
-                Followers: {profileData.followers_count} · Following:{" "}
-                {profileData.following_count}
-              </p>
-
-              {/* Edit profile if it's me */}
-              {currentUser && currentUser === profileData.username && (
-                <ProfileEdit
-                  profile={profileData}
-                  onUpdated={handleProfileUpdated}
-                />
-              )}
-
-              {/* Follow/unfollow if not me */}
-              {currentUser && currentUser !== profileData.username && (
-                <button type="button" onClick={toggleFollow}>
-                  {profileData.is_following ? "Unfollow" : "Follow"}
-                </button>
-              )}
-
-              <h3>Posts</h3>
-              {Array.isArray(profileData.posts) &&
-                profileData.posts.map((post) => (
-                  <PostCard
-                    key={post.id}
-                    post={post}
-                    currentUser={currentUser}
-                    onOpenProfile={openProfile}
-                    onLiked={handlePostLiked}
-                  />
-                ))}
-            </div>
-          ) : (
-            <>
-              <h2 className="feed-title">Home Feed</h2>
-              {feed.length === 0 && <p>No posts to show.</p>}
-              {feed.map((post) => (
-                <PostCard
-                  key={post.id}
-                  post={post}
-                  currentUser={currentUser}
-                  onOpenProfile={openProfile}
-                  onLiked={handlePostLiked}
-                />
-              ))}
-            </>
+          {loading && (
+            <div className="loading-indicator">Loading feed...</div>
           )}
-        </main>
 
-        {/* RIGHT: SIDEBAR */}
-        <aside className="side-panel">
-          <StoryUpload currentUser={currentUser} onUploaded={loadStories} />
-          <UploadForm currentUser={currentUser} onPosted={loadFeed} />
+          {(searchResults?.posts || feed).length === 0 && !loading && (
+            <div className="empty-feed">No posts to show.</div>
+          )}
+
+          {(searchResults?.posts || feed).map((post) => (
+            <PostCard
+              key={post.id}
+              post={post}
+              currentUser={currentUser}
+              onUserClick={(username) => setSelectedProfile(username)}
+            />
+          ))}
+        </section>
+
+        <section className="right-column">
+          <UploadForm />
 
           <div className="sidebar-card">
-            <h4>Notifications</h4>
-            {notifications.length === 0 ? (
-              <p style={{ fontSize: 12, margin: 0 }}>No notifications yet.</p>
-            ) : (
-              <ul className="notif-list">
-                {notifications.slice(0, 5).map((n) => (
-                  <li
-                    key={n.id}
-                    className={n.is_read ? "read" : ""}
-                    onClick={() => readNotif(n.id)}
-                  >
-                    {n.actor?.username
-                      ? `@${n.actor.username} ${n.message}`
-                      : n.message}
-                  </li>
-                ))}
-              </ul>
+            <h3>Notifications</h3>
+            {notifications.length === 0 && (
+              <p className="muted">No notifications yet.</p>
             )}
+            {notifications.map((n) => (
+              <div key={n.id} className="notification-item">
+                {n.text}
+              </div>
+            ))}
           </div>
 
-          <div id="messages-panel">
-            <MessagesPanel
-              currentUser={currentUser}
-              onNewMessage={handleNewMessage}
-              activeUser={chatUser}
-              onChangeActiveUser={setChatUser}
-            />
-          </div>
-        </aside>
-      </div>
+          <MessagesPanel
+            currentUser={currentUser}
+            conversations={conversations}
+          />
+
+          <ProfileEdit
+            username={currentUser}
+            selectedProfile={selectedProfile}
+          />
+        </section>
+      </main>
     </div>
   );
 }
+
+export default App;
