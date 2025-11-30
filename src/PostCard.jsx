@@ -7,7 +7,7 @@ const buildImageUrl = (raw) => {
   const url = String(raw).trim();
   if (!url) return "";
 
-  // 1) If it came from local dev DB (127.0.0.1 / localhost), rewrite to API_BASE
+  // Rewrite localhost/127.0.0.1 URLs to API_BASE
   if (
     url.startsWith("http://127.0.0.1") ||
     url.startsWith("https://127.0.0.1") ||
@@ -18,18 +18,17 @@ const buildImageUrl = (raw) => {
       const u = new URL(url);
       return `${API_BASE}${u.pathname}${u.search}`;
     } catch {
-      // if parsing fails, just drop host and use as path
       const withoutHost = url.replace(/^https?:\/\/[^/]+/, "");
       return `${API_BASE}${withoutHost}`;
     }
   }
 
-  // 2) Already points to our backend or some other absolute URL
+  // Already absolute
   if (url.startsWith("http://") || url.startsWith("https://")) {
     return url;
   }
 
-  // 3) Relative path
+  // Relative path
   if (url.startsWith("/")) {
     return `${API_BASE}${url}`;
   }
@@ -44,6 +43,7 @@ export default function PostCard({ post, currentUser, onOpenProfile }) {
   const [commentStatus, setCommentStatus] = useState("");
 
   const authorUsername = post.user?.username || "user";
+  const imageUrl = buildImageUrl(post.media_url);
 
   const loadComments = async () => {
     try {
@@ -113,11 +113,20 @@ export default function PostCard({ post, currentUser, onOpenProfile }) {
 
       {/* MEDIA */}
       {post.media_url && (
-        <img
-          src={buildImageUrl(post.media_url)}
-          alt="post"
-          className="post-media"
-        />
+        <div className="post-media-wrapper">
+          {/* Clickable link so you can open image in new tab */}
+          <a href={imageUrl} target="_blank" rel="noreferrer">
+            <img src={imageUrl} alt="post" className="post-media" />
+          </a>
+
+          {/* Tiny debug text so we can see the URL being used */}
+          <div
+            className="post-media-debug"
+            style={{ fontSize: "10px", color: "#888", marginTop: "4px" }}
+          >
+            img src: {imageUrl}
+          </div>
+        </div>
       )}
 
       {/* CAPTION */}

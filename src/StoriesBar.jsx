@@ -40,7 +40,7 @@ export default function StoriesBar({
 }) {
   const list = Array.isArray(stories) ? stories : [];
 
-  // latest story per user
+  // Latest story per user
   const byUser = {};
   for (const s of list) {
     const username = s.user?.username || "user";
@@ -74,18 +74,23 @@ export default function StoriesBar({
       {storyList.map((story) => {
         const username = story.user?.username || "user";
         const isMe = currentUser && username === currentUser;
+        const storyUrl = buildImageUrl(story.media_url);
 
         return (
           <div key={story.id} className="story-circle">
             <div className={isMe ? "story-avatar-ring-me" : "story-avatar-ring"}>
-              <img
-                src={buildImageUrl(story.media_url)}
-                alt={`${username}'s story`}
-                className="story-avatar-img"
-                onClick={() =>
-                  onOpenProfile && onOpenProfile(username)
-                }
-              />
+              {/* Wrap in <a> so you can open story image in new tab */}
+              <a href={storyUrl} target="_blank" rel="noreferrer">
+                <img
+                  src={storyUrl}
+                  alt={`${username}'s story`}
+                  className="story-avatar-img"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onOpenProfile && onOpenProfile(username);
+                  }}
+                />
+              </a>
             </div>
             <button
               type="button"
@@ -96,6 +101,12 @@ export default function StoriesBar({
             >
               @{username}
             </button>
+            {/* Debug text for story URL */}
+            <div
+              style={{ fontSize: "9px", color: "#888", marginTop: "2px" }}
+            >
+              story src: {storyUrl}
+            </div>
           </div>
         );
       })}
