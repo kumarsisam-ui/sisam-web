@@ -983,3 +983,13 @@ body.theme-dark .notif-btn {
 .clickable-username:hover {
   text-decoration: underline;
 }
+.upload-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.upload-form textarea {
+  resize: vertical;
+  min-height: 50px;
+}

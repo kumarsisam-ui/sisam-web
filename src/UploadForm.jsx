@@ -1,79 +1,83 @@
+// src/UploadForm.jsx
 import React, { useState } from "react";
 import { createPost } from "./api";
 
-export default function UploadForm({ currentUser, onPosted }) {
-  const [caption, setCaption] = useState("");
+function UploadForm() {
   const [file, setFile] = useState(null);
+  const [caption, setCaption] = useState("");
   const [status, setStatus] = useState("");
-  const [loading, setLoading] = useState(false);
 
-  if (!currentUser) {
-    return (
-      <div className="upload-form sidebar-card">
-        <strong>Create Post</strong>
-        <p style={{ fontSize: 12 }}>Login to create a post.</p>
-      </div>
-    );
-  }
+  // we use the token stored by login()
+  const token =
+    typeof localStorage !== "undefined"
+      ? localStorage.getItem("token")
+      : null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setStatus("");
 
     if (!file) {
-      setStatus("Please choose an image.");
+      setStatus("Please choose an image or video.");
       return;
     }
 
     try {
-      setLoading(true);
-      setStatus("Uploading post...");
-      const post = await createPost({ caption, file });
+      setStatus("Uploading...");
+      await createPost({ caption, file });
+
+      setStatus("Post uploaded!");
       setCaption("");
       setFile(null);
-      setStatus("Post uploaded ✔");
 
-      if (onPosted) onPosted();
-
-      // Clear status after a short delay
-      setTimeout(() => setStatus(""), 1500);
-    } catch (err) {
-      console.error("Post upload error:", err);
-
-      // Try to show server error details if available
-      const serverMsg =
-        err?.response?.data?.detail ||
-        err?.response?.data?.message ||
-        err?.response?.data;
-
-      if (serverMsg) {
-        setStatus(`Failed to upload post: ${JSON.stringify(serverMsg)}`);
-      } else {
-        setStatus("Failed to upload post.");
+      // clear the file input visually
+      if (e.target && e.target.reset) {
+        e.target.reset();
       }
-    } finally {
-      setLoading(false);
+    } catch (err) {
+      console.error("Failed to upload post", err);
+      setStatus("Upload failed. Please try again.");
     }
   };
 
+  // if there is no token at all, show the login message
+  if (!token) {
+    return (
+      <div className="sidebar-card">
+        <h3>Create Post</h3>
+        <p className="muted">Login to create a post.</p>
+      </div>
+    );
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="upload-form">
-      <strong>Create Post</strong>
-      <input
-        type="file"
-        accept="image/*"
-        onChange={(e) => setFile(e.target.files[0] || null)}
-      />
-      <input
-        type="text"
-        placeholder="Write a caption..."
-        value={caption}
-        onChange={(e) => setCaption(e.target.value)}
-      />
-      <button type="submit" className="upload-btn" disabled={loading}>
-        {loading ? "Uploading..." : "Upload"}
-      </button>
-      {status && <div className="status-text">{status}</div>}
-    </form>
+    <div className="sidebar-card">
+      <h3>Create Post</h3>
+      <form onSubmit={handleSubmit} className="upload-form">
+        <input
+          type="file"
+          onChange={(e) => setFile(e.target.files[0] || null)}
+        />
+
+        <textarea
+          rows={2}
+          placeholder="Write a caption..."
+          value={caption}
+          onChange={(e) => setCaption(e.target.value)}
+        />
+
+        <button type="submit" className="pill-button">
+          Upload
+        </button>
+      </form>
+
+      {status && (
+        <p className="muted" style={{ marginTop: "6px" }}>
+          {status}
+        </p>
+      )}
+    </div>
   );
 }
+
+export default UploadForm;
