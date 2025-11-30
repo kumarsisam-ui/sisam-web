@@ -1,141 +1,169 @@
 // src/PostCard.jsx
-import React, { useState } from "react";
-import { likePost, addComment, normalizeMediaUrl } from "./api";
+import React, { useEffect, useState } from "react";
+import { likePost, getComments, addComment, API_BASE } from "./api";
 
-function PostCard({ post, currentUser }) {
-  const username =
-    post.username || post.user_username || post.author_username || "user";
+export default function PostCard({ post, currentUser, onOpenProfile }) {
+  const [likes, setLikes] = useState(post.like_count || 0);
+  const [hasLiked, setHasLiked] = useState(post.has_liked || false);
 
-  const createdAt = post.created_at || post.createdAt || post.timestamp;
+  const [comments, setComments] = useState([]);
+  const [newComment, setNewComment] = useState("");
+  const [commentStatus, setCommentStatus] = useState("");
 
-  // Try several possibilities for the stored image path
-  const rawImage =
-    post.image_url ||
-    post.media_url ||
-    post.photo_url ||
-    post.thumbnail_url ||
-    post.image ||
-    post.file_path ||
-    post.path ||
-    post.url;
+  const authorUsername = post.user?.username || "user";
 
-  const imgSrc = normalizeMediaUrl(rawImage);
+  // ---------- helpers ----------
 
-  const [liked, setLiked] = useState(
-    post.liked_by_current_user || post.is_liked || false
-  );
-  const [likes, setLikes] = useState(post.like_count ?? post.likes ?? 0);
-  const [comments, setComments] = useState(
-    post.comments || post.latest_comments || []
-  );
-  const [commentText, setCommentText] = useState("");
-  const [busy, setBusy] = useState(false);
+  const buildImageUrl = (raw) => {
+    if (!raw) return "";
+    const url = String(raw).trim();
+
+    // Already absolute
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+
+    // Relative path from backend
+    if (url.startsWith("/")) return `${API_BASE}${url}`;
+    return `${API_BASE}/${url}`;
+  };
+
+  const loadComments = async () => {
+    try {
+      const data = await getComments(post.id);
+      setComments(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Get comments error:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadComments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post.id]);
+
+  // ---------- actions ----------
 
   const handleLike = async () => {
-    if (!post.id || busy) return;
-    setBusy(true);
     try {
-      // optimistic UI
-      setLiked((prev) => !prev);
-      setLikes((prev) => prev + (liked ? -1 : 1));
-      await likePost(post.id);
-    } catch (err) {
-      console.error("Like failed", err);
-      // revert on error
-      setLiked((prev) => !prev);
-      setLikes((prev) => prev + (liked ? 1 : -1));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleComment = async (e) => {
-    e.preventDefault();
-    if (!commentText.trim() || !post.id || busy) return;
-
-    setBusy(true);
-    try {
-      const text = commentText.trim();
-      setCommentText("");
-
-      let newComment;
-      try {
-        newComment = await addComment(post.id, text);
-      } catch {
-        newComment = {
-          id: Math.random().toString(36).slice(2),
-          username: currentUser || "you",
-          text,
-        };
+      const data = await likePost(post.id);
+      if (data && typeof data.like_count === "number") {
+        setLikes(data.like_count);
       }
-      setComments((prev) => [...prev, newComment]);
+      if (data && typeof data.has_liked === "boolean") {
+        setHasLiked(data.has_liked);
+      }
     } catch (err) {
-      console.error("Add comment failed", err);
-    } finally {
-      setBusy(false);
+      console.error("Like error:", err);
+      // Optional tiny status instead of alert:
+      // setCommentStatus("Failed to like post.");
     }
   };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return;
+
+    try {
+      setCommentStatus("");
+      await addComment(post.id, newComment.trim());
+      setNewComment("");
+      await loadComments();
+    } catch (err) {
+      console.error("Add comment error:", err);
+      setCommentStatus("Failed to add comment.");
+    }
+  };
+
+  // ---------- render ----------
 
   return (
-    <article className="post-card">
-      <header className="post-header">
-        <div className="post-avatar">
-          <span>{username[0]?.toUpperCase()}</span>
+    <div className="post-card">
+      {/* HEADER */}
+      <div className="post-header">
+        <div
+          className="post-author"
+          onClick={() =>
+            onOpenProfile && onOpenProfile(authorUsername)
+          }
+        >
+          <div className="post-avatar">
+            {authorUsername[0]?.toUpperCase()}
+          </div>
+          <div className="post-author-text">
+            <div className="post-author-username">@{authorUsername}</div>
+            <div className="post-time">
+              {post.created_at
+                ? new Date(post.created_at).toLocaleString()
+                : ""}
+            </div>
+          </div>
         </div>
-        <div className="post-meta">
-          <span className="post-author">@{username}</span>
-          {createdAt && (
-            <span className="post-date">
-              {new Date(createdAt).toLocaleString()}
-            </span>
-          )}
-        </div>
-      </header>
+      </div>
 
-      {imgSrc && (
-        <div className="post-media">
-          <img src={imgSrc} alt={post.caption || "post"} />
-        </div>
+      {/* MEDIA */}
+      {post.media_url && (
+        <img
+          src={buildImageUrl(post.media_url)}
+          alt="post"
+          className="post-media"
+        />
       )}
 
+      {/* CAPTION */}
       {post.caption && (
         <div className="post-caption">{post.caption}</div>
       )}
 
+      {/* LIKE + META */}
       <div className="post-actions">
-        <button
-          className={`like-button ${liked ? "liked" : ""}`}
-          onClick={handleLike}
-          disabled={busy}
-        >
-          ♡ Like
+        <button type="button" onClick={handleLike}>
+          {hasLiked ? "♥ Liked" : "♡ Like"}
         </button>
-        <span className="likes-count">{likes} likes</span>
+        <span className="post-like-count">{likes} likes</span>
       </div>
 
-      <div className="post-comments">
-        {comments &&
-          comments.map((c) => (
-            <div className="comment-row" key={c.id}>
-              <span className="comment-author">@{c.username}</span>
-              <span className="comment-text">{c.text}</span>
+      {/* COMMENTS */}
+      <div className="comments">
+        {comments.map((c) => {
+          const cUser = c.user?.username || "user";
+          return (
+            <div key={c.id} className="comment-item">
+              <span
+                className="comment-user"
+                onClick={() =>
+                  onOpenProfile && onOpenProfile(cUser)
+                }
+                style={{ cursor: "pointer" }}
+              >
+                @{cUser}
+              </span>{" "}
+              <span>{c.text}</span>
             </div>
-          ))}
-      </div>
+          );
+        })}
 
-      <form className="comment-form" onSubmit={handleComment}>
-        <input
-          type="text"
-          placeholder="Add a comment..."
-          value={commentText}
-          onChange={(e) => setCommentText(e.target.value)}
-        />
-        <button type="submit" disabled={busy}>
-          Post
-        </button>
-      </form>
-    </article>
+        {currentUser && (
+          <div className="comment-form">
+            <input
+              type="text"
+              placeholder="Add a comment..."
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleAddComment();
+                }
+              }}
+            />
+            <button type="button" onClick={handleAddComment}>
+              Post
+            </button>
+          </div>
+        )}
+
+        {commentStatus && (
+          <div className="comment-status">{commentStatus}</div>
+        )}
+      </div>
+    </div>
   );
 }
-
-export default PostCard;

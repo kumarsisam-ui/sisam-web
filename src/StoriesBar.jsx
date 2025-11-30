@@ -1,59 +1,84 @@
 // src/StoriesBar.jsx
 import React from "react";
-import { normalizeMediaUrl } from "./api";
+import { API_BASE } from "./api";
 
-function StoriesBar({ stories = [], currentUser }) {
-  const handleAddStory = () => {
-    const el = document.getElementById("create-story-panel");
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-  };
+const buildImageUrl = (raw) => {
+  if (!raw) return "";
+  const url = String(raw).trim();
+
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  if (url.startsWith("/")) return `${API_BASE}${url}`;
+  return `${API_BASE}/${url}`;
+};
+
+export default function StoriesBar({
+  stories,
+  currentUser,
+  onOpenProfile,
+  onAddStoryClick,
+}) {
+  const list = Array.isArray(stories) ? stories : [];
+
+  // Show at most one (latest) story per user in the bar
+  const byUser = {};
+  for (const s of list) {
+    const username = s.user?.username || "user";
+    if (!byUser[username]) {
+      byUser[username] = s;
+    } else {
+      const prev = byUser[username];
+      const prevTime = prev.created_at ? new Date(prev.created_at) : 0;
+      const newTime = s.created_at ? new Date(s.created_at) : 0;
+      if (newTime > prevTime) byUser[username] = s;
+    }
+  }
+
+  const storyList = Object.values(byUser);
 
   return (
     <div className="stories-bar">
-      {/* Add story bubble */}
-      <button className="story-item story-add" onClick={handleAddStory}>
-        <div className="story-avatar add-avatar">+</div>
-        <div className="story-username">
-          {currentUser ? `@${currentUser}` : "Your story"}
+      {/* + ADD STORY (uses hidden input with id="story-upload-input") */}
+      {currentUser && (
+        <div
+          className="story-circle add-story-circle"
+          onClick={() => onAddStoryClick && onAddStoryClick()}
+        >
+          <div className="add-story-ring">
+            <span className="add-story-plus">+</span>
+          </div>
+          <div className="story-username">@{currentUser}</div>
         </div>
-      </button>
+      )}
 
-      {/* Other users' stories */}
-      {stories.map((story) => {
-        const username =
-          story.username ||
-          story.user_username ||
-          story.author_username ||
-          "user";
-
-        // Try many possible image fields
-        const rawImage =
-          story.image_url ||
-          story.media_url ||
-          story.photo_url ||
-          story.thumbnail_url ||
-          story.image ||
-          story.file_path ||
-          story.path ||
-          story.url;
-
-        const imgSrc = normalizeMediaUrl(rawImage);
+      {/* EXISTING STORIES */}
+      {storyList.map((story) => {
+        const username = story.user?.username || "user";
+        const isMe = currentUser && username === currentUser;
 
         return (
-          <div className="story-item" key={story.id}>
-            <div className="story-avatar">
-              {imgSrc ? (
-                <img src={imgSrc} alt={`${username} story`} />
-              ) : (
-                <span>{username[0]?.toUpperCase()}</span>
-              )}
+          <div key={story.id} className="story-circle">
+            <div className={isMe ? "story-avatar-ring-me" : "story-avatar-ring"}>
+              <img
+                src={buildImageUrl(story.media_url)}
+                alt={`${username}'s story`}
+                className="story-avatar-img"
+                onClick={() =>
+                  onOpenProfile && onOpenProfile(username)
+                }
+              />
             </div>
-            <div className="story-username">@{username}</div>
+            <button
+              type="button"
+              className="story-username"
+              onClick={() =>
+                onOpenProfile && onOpenProfile(username)
+              }
+            >
+              @{username}
+            </button>
           </div>
         );
       })}
     </div>
   );
 }
-
-export default StoriesBar;
