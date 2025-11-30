@@ -17,31 +17,25 @@ export function normalizeMediaUrl(path) {
   if (!trimmed) return null;
 
   try {
-    // Full URL? e.g. "http://127.0.0.1:8000/uploads/xyz.jpg"
+    // Case 1: full URL (http://..., https://...)
     const u = new URL(trimmed);
-    // Replace host with our API_BASE host but keep path & query
+    // Force it to use our backend host, but keep the path/query
     return `${API_BASE}${u.pathname}${u.search}`;
   } catch {
-    // Not a full URL -> relative path or bare filename
+    // Case 2: relative path or filename
 
-    // Starts with "/" -> treat as root-relative, e.g. "/uploads/xyz.jpg"
+    // If it already starts with "/", just stick API_BASE in front:
+    //   "/uploads/xyz.jpg"  ->  "https://sisam-backend.onrender.com/uploads/xyz.jpg"
     if (trimmed.startsWith("/")) {
       return `${API_BASE}${trimmed}`;
     }
 
-    // No protocol and no leading slash -> probably just a filename "xyz.jpg"
-    if (
-      !trimmed.startsWith("http://") &&
-      !trimmed.startsWith("https://")
-    ) {
-      return `${API_BASE}/uploads/${trimmed}`;
-    }
-
-    // Fallback: already some URL string, just return it
-    return trimmed;
+    // Otherwise just prefix a "/" and API_BASE:
+    //   "uploads/xyz.jpg"   ->  "https://sisam-backend.onrender.com/uploads/xyz.jpg"
+    //   "xyz.jpg"           ->  "https://sisam-backend.onrender.com/xyz.jpg"
+    return `${API_BASE}/${trimmed}`;
   }
 }
-
 // ------------- AUTH TOKEN HANDLING -------------
 let authToken = null;
 
