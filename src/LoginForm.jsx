@@ -15,18 +15,12 @@ function LoginForm({ onLogin }) {
 
     try {
       const result = await login(username, password);
-
-      // login() already saves token + username in localStorage
       if (onLogin) {
         onLogin(result.username);
       }
-
-      // Simple UX: clear fields
       setPassword("");
-      // Optional: redirect to home
-      // window.location.href = "/";
-
     } catch (err) {
+      console.error(err);
       setError("Invalid username or password");
     }
 
@@ -44,7 +38,7 @@ function LoginForm({ onLogin }) {
             placeholder="Username"
             className="login-input"
             value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            onChange={(e) => setUsername(e.target.value.trim())}
             required
           />
 

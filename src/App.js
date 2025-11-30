@@ -1,8 +1,8 @@
 // src/App.js
 import React, { useEffect, useState } from "react";
 import "./App.css";
+
 import {
-  API_BASE,
   getFeed,
   getStories,
   getNotifications,
@@ -11,12 +11,11 @@ import {
   clearAuthToken,
 } from "./api";
 
+import LoginForm from "./LoginForm.jsx";
 import StoriesBar from "./StoriesBar.jsx";
 import UploadForm from "./UploadForm.jsx";
 import MessagesPanel from "./MessagesPanel.jsx";
 import PostCard from "./PostCard.jsx";
-import ProfileEdit from "./ProfileEdit.jsx";
-import LoginForm from "./LoginForm.jsx";
 
 function App() {
   const [currentUser, setCurrentUser] = useState(
@@ -29,19 +28,21 @@ function App() {
       ? localStorage.getItem("theme") || "dark"
       : "dark"
   );
+
   const [feed, setFeed] = useState([]);
   const [stories, setStories] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [conversations, setConversations] = useState([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState(null);
-  const [selectedProfile, setSelectedProfile] = useState(null);
+
+  const [searchText, setSearchText] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ---------------- THEME ----------------
+  // --------- THEME ---------
 
   useEffect(() => {
-    document.body.classList.toggle("light-theme", theme === "light");
+    if (typeof document !== "undefined") {
+      document.body.classList.toggle("light-theme", theme === "light");
+    }
     if (typeof localStorage !== "undefined") {
       localStorage.setItem("theme", theme);
     }
@@ -51,7 +52,7 @@ function App() {
     setTheme((t) => (t === "dark" ? "light" : "dark"));
   };
 
-  // ---------------- DATA LOAD ----------------
+  // --------- LOAD DATA AFTER LOGIN ---------
 
   useEffect(() => {
     if (!currentUser) return;
@@ -59,19 +60,20 @@ function App() {
     async function loadAll() {
       try {
         setLoading(true);
-        const [feedData, storiesData, notifData, convosData] =
+        const [feedData, storiesData, notifsData, convosData] =
           await Promise.all([
             getFeed(),
             getStories(),
             getNotifications(),
             getConversations(),
           ]);
+
         setFeed(feedData || []);
         setStories(storiesData || []);
-        setNotifications(notifData || []);
+        setNotifications(notifsData || []);
         setConversations(convosData || []);
       } catch (err) {
-        console.error("Error loading initial data", err);
+        console.error("Failed to load initial data", err);
       } finally {
         setLoading(false);
       }
@@ -80,30 +82,28 @@ function App() {
     loadAll();
   }, [currentUser]);
 
-  // ---------------- SEARCH ----------------
+  // --------- SEARCH ---------
 
   const handleSearch = async () => {
-    const q = searchQuery.trim();
-    if (!q) {
-      setSearchResults(null);
-      return;
-    }
+    const q = searchText.trim();
+    if (!q) return;
 
     try {
-      const results = await searchAll(q);
-      setSearchResults(results);
+      const result = await searchAll(q);
+      // for now just log; later we can show search results nicely
+      console.log("Search results:", result);
     } catch (err) {
       console.error("Search failed", err);
     }
   };
 
-  const handleSearchKey = (e) => {
+  const handleSearchKeyDown = (e) => {
     if (e.key === "Enter") {
       handleSearch();
     }
   };
 
-  // ---------------- AUTH ----------------
+  // --------- AUTH ---------
 
   const handleLogout = () => {
     clearAuthToken();
@@ -115,40 +115,48 @@ function App() {
     setStories([]);
     setNotifications([]);
     setConversations([]);
-    setSearchResults(null);
+    setSearchText("");
   };
 
   const handleLoginSuccess = (username) => {
     setCurrentUser(username);
   };
 
-  // ---------------- RENDER HELPERS ----------------
+  // --------- BADGE COUNTS ---------
 
-  const unreadNotifications = notifications.filter((n) => !n.is_read).length;
-  const unreadMessages = conversations.filter((c) => c.unread_count > 0).length;
+  const unreadNotifications = (notifications || []).filter(
+    (n) => !n.is_read
+  ).length;
 
-  // ---------------- MAIN RENDER ----------------
+  const unreadMessages = (conversations || []).filter(
+    (c) => c.unread_count > 0
+  ).length;
 
+  // --------- RENDER ---------
+
+  // not logged in → show login screen with header
   if (!currentUser) {
     return (
       <div className={`app-root ${theme}`}>
         <header className="top-bar gradient-bar">
           <div className="logo">Sisam</div>
+
           <div className="search-wrapper">
             <input
               className="search-input"
               placeholder="Search users or posts..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={handleSearchKey}
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
             />
             <button className="search-button" onClick={handleSearch}>
               Search
             </button>
           </div>
+
           <div className="top-actions">
-            <button className="pill-button" onClick={() => setTheme("light")}>
-              Home
+            <button className="pill-button" onClick={toggleTheme}>
+              {theme === "dark" ? "☀ Light" : "🌙 Dark"}
             </button>
           </div>
         </header>
@@ -162,27 +170,26 @@ function App() {
     );
   }
 
+  // logged in → full app
   return (
     <div className={`app-root ${theme}`}>
-      {/* TOP BAR */}
       <header className="top-bar gradient-bar">
         <div className="logo">Sisam</div>
 
-        {/* SEARCH + BUTTON */}
+        {/* search + button */}
         <div className="search-wrapper">
           <input
             className="search-input"
             placeholder="Search users or posts..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onKeyDown={handleSearchKey}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
           />
           <button className="search-button" onClick={handleSearch}>
             Search
           </button>
         </div>
 
-        {/* RIGHT BUTTONS */}
         <div className="top-actions">
           <button className="pill-button">Home</button>
           <button className="pill-button">Explore</button>
@@ -205,31 +212,23 @@ function App() {
         </div>
       </header>
 
-      {/* LAYOUT */}
       <main className="main-layout">
         <section className="left-column">
-          <StoriesBar
-            stories={stories}
-            currentUser={currentUser}
-            onStoryUpload={() => {
-              // reload stories after upload if you want
-            }}
-          />
+          <StoriesBar stories={stories} currentUser={currentUser} />
 
           {loading && (
-            <div className="loading-indicator">Loading feed...</div>
+            <div className="loading-indicator">Loading feed…</div>
           )}
 
-          {(searchResults?.posts || feed).length === 0 && !loading && (
+          {!loading && feed.length === 0 && (
             <div className="empty-feed">No posts to show.</div>
           )}
 
-          {(searchResults?.posts || feed).map((post) => (
+          {feed.map((post) => (
             <PostCard
               key={post.id}
               post={post}
               currentUser={currentUser}
-              onUserClick={(username) => setSelectedProfile(username)}
             />
           ))}
         </section>
@@ -249,15 +248,7 @@ function App() {
             ))}
           </div>
 
-          <MessagesPanel
-            currentUser={currentUser}
-            conversations={conversations}
-          />
-
-          <ProfileEdit
-            username={currentUser}
-            selectedProfile={selectedProfile}
-          />
+          <MessagesPanel currentUser={currentUser} />
         </section>
       </main>
     </div>
