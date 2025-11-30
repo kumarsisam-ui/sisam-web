@@ -2,12 +2,13 @@
 import React, { useEffect, useState } from "react";
 import { likePost, getComments, addComment, API_BASE } from "./api";
 
+// Build a safe image URL that works on Render
 const buildImageUrl = (raw) => {
   if (!raw) return "";
   const url = String(raw).trim();
   if (!url) return "";
 
-  // Rewrite localhost/127.0.0.1 URLs to API_BASE
+  // Rewrite localhost URLs to API_BASE
   if (
     url.startsWith("http://127.0.0.1") ||
     url.startsWith("https://127.0.0.1") ||
@@ -24,14 +25,10 @@ const buildImageUrl = (raw) => {
   }
 
   // Already absolute
-  if (url.startsWith("http://") || url.startsWith("https://")) {
-    return url;
-  }
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
 
-  // Relative path
-  if (url.startsWith("/")) {
-    return `${API_BASE}${url}`;
-  }
+  // Relative
+  if (url.startsWith("/")) return `${API_BASE}${url}`;
   return `${API_BASE}/${url}`;
 };
 
@@ -42,7 +39,7 @@ export default function PostCard({ post, currentUser, onOpenProfile }) {
   const [newComment, setNewComment] = useState("");
   const [commentStatus, setCommentStatus] = useState("");
 
-  const authorUsername = post.user?.username || "user";
+  const username = post.user?.username || "user";
   const imageUrl = buildImageUrl(post.media_url);
 
   const loadComments = async () => {
@@ -75,7 +72,6 @@ export default function PostCard({ post, currentUser, onOpenProfile }) {
 
   const handleAddComment = async () => {
     if (!newComment.trim()) return;
-
     try {
       setCommentStatus("");
       await addComment(post.id, newComment.trim());
@@ -88,20 +84,43 @@ export default function PostCard({ post, currentUser, onOpenProfile }) {
   };
 
   return (
-    <div className="post-card">
+    <div
+      className="post-card"
+      style={{
+        border: "2px solid #ff00ff",
+        boxShadow: "0 0 10px rgba(255,0,255,0.5)",
+        position: "relative",
+      }}
+    >
+      {/* BIG DEBUG LABEL SO WE KNOW THIS FILE IS LIVE */}
+      <div
+        style={{
+          position: "absolute",
+          top: -12,
+          right: 8,
+          background: "yellow",
+          color: "black",
+          fontSize: 10,
+          padding: "2px 4px",
+          borderRadius: 4,
+          zIndex: 5,
+        }}
+      >
+        DEBUG POST CARD
+      </div>
+
       {/* HEADER */}
       <div className="post-header">
         <div
           className="post-author"
-          onClick={() =>
-            onOpenProfile && onOpenProfile(authorUsername)
-          }
+          onClick={() => onOpenProfile && onOpenProfile(username)}
+          style={{ cursor: "pointer" }}
         >
           <div className="post-avatar">
-            {authorUsername[0]?.toUpperCase()}
+            {username[0]?.toUpperCase()}
           </div>
           <div className="post-author-text">
-            <div className="post-author-username">@{authorUsername}</div>
+            <div className="post-author-username">@{username}</div>
             <div className="post-time">
               {post.created_at
                 ? new Date(post.created_at).toLocaleString()
@@ -111,18 +130,29 @@ export default function PostCard({ post, currentUser, onOpenProfile }) {
         </div>
       </div>
 
-      {/* MEDIA */}
+      {/* IMAGE */}
       {post.media_url && (
         <div className="post-media-wrapper">
-          {/* Clickable link so you can open image in new tab */}
           <a href={imageUrl} target="_blank" rel="noreferrer">
-            <img src={imageUrl} alt="post" className="post-media" />
+            <img
+              src={imageUrl}
+              alt="post"
+              className="post-media"
+              onError={(e) => {
+                console.error("Post image load error:", imageUrl);
+                e.currentTarget.style.display = "none";
+              }}
+            />
           </a>
 
-          {/* Tiny debug text so we can see the URL being used */}
+          {/* VERY SMALL URL DEBUG TEXT */}
           <div
-            className="post-media-debug"
-            style={{ fontSize: "10px", color: "#888", marginTop: "4px" }}
+            style={{
+              fontSize: 10,
+              color: "#888",
+              marginTop: 4,
+              wordBreak: "break-all",
+            }}
           >
             img src: {imageUrl}
           </div>
@@ -134,7 +164,7 @@ export default function PostCard({ post, currentUser, onOpenProfile }) {
         <div className="post-caption">{post.caption}</div>
       )}
 
-      {/* LIKE + META */}
+      {/* LIKE + COUNT */}
       <div className="post-actions">
         <button type="button" onClick={handleLike}>
           {hasLiked ? "♥ Liked" : "♡ Like"}
@@ -150,10 +180,10 @@ export default function PostCard({ post, currentUser, onOpenProfile }) {
             <div key={c.id} className="comment-item">
               <span
                 className="comment-user"
+                style={{ cursor: "pointer" }}
                 onClick={() =>
                   onOpenProfile && onOpenProfile(cUser)
                 }
-                style={{ cursor: "pointer" }}
               >
                 @{cUser}
               </span>{" "}
