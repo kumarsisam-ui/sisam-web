@@ -8,17 +8,23 @@ function PostCard({ post, currentUser }) {
 
   const createdAt = post.created_at || post.createdAt || post.timestamp;
 
+  // Try several possibilities for the stored image path
   const rawImage =
-    post.image_url || post.media_url || post.photo_url || post.url;
+    post.image_url ||
+    post.media_url ||
+    post.photo_url ||
+    post.thumbnail_url ||
+    post.image ||
+    post.file_path ||
+    post.path ||
+    post.url;
+
   const imgSrc = normalizeMediaUrl(rawImage);
 
   const [liked, setLiked] = useState(
     post.liked_by_current_user || post.is_liked || false
   );
-  const [likes, setLikes] = useState(
-    post.like_count ?? post.likes ?? 0
-  );
-
+  const [likes, setLikes] = useState(post.like_count ?? post.likes ?? 0);
   const [comments, setComments] = useState(
     post.comments || post.latest_comments || []
   );
@@ -29,7 +35,7 @@ function PostCard({ post, currentUser }) {
     if (!post.id || busy) return;
     setBusy(true);
     try {
-      // optimistic toggle
+      // optimistic UI
       setLiked((prev) => !prev);
       setLikes((prev) => prev + (liked ? -1 : 1));
       await likePost(post.id);

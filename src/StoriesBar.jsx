@@ -10,7 +10,7 @@ function StoriesBar({ stories = [], currentUser }) {
 
   return (
     <div className="stories-bar">
-      {/* Your story (add story) */}
+      {/* Add story bubble */}
       <button className="story-item story-add" onClick={handleAddStory}>
         <div className="story-avatar add-avatar">+</div>
         <div className="story-username">
@@ -26,11 +26,16 @@ function StoriesBar({ stories = [], currentUser }) {
           story.author_username ||
           "user";
 
+        // Try many possible image fields
         const rawImage =
           story.image_url ||
           story.media_url ||
-          story.url ||
-          story.photo_url;
+          story.photo_url ||
+          story.thumbnail_url ||
+          story.image ||
+          story.file_path ||
+          story.path ||
+          story.url;
 
         const imgSrc = normalizeMediaUrl(rawImage);
 

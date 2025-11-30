@@ -1,28 +1,69 @@
 // src/api.js
 import axios from "axios";
 
-// In production, Vercel sets REACT_APP_API_BASE.
-// Locally you can still use 127.0.0.1:8000 if no env is set.
+// Base URL for the backend API
+// In Vercel, REACT_APP_API_BASE is set.
+// Fallback to the Render backend URL (NOT 127.0.0.1).
 export const API_BASE =
   process.env.REACT_APP_API_BASE || "https://sisam-backend.onrender.com";
-// Turn any stored image URL into a URL that works with the deployed backend
+
+// ---------- MEDIA URL NORMALIZER ----------
+// Make sure any stored image path or URL works against the deployed backend.
 export function normalizeMediaUrl(path) {
   if (!path) return null;
+  if (typeof path !== "string") return null;
+
+  const trimmed = path.trim();
+  if (!trimmed) return null;
 
   try {
-    // Full URL? (e.g. http://127.0.0.1:8000/uploads/xyz.jpg)
-    const u = new URL(path);
-    // Keep just path + query, but on our API_BASE host
+    // Full URL? e.g. "http://127.0.0.1:8000/uploads/xyz.jpg"
+    const u = new URL(trimmed);
+    // Replace host with our API_BASE host but keep path & query
     return `${API_BASE}${u.pathname}${u.search}`;
   } catch {
-    // Not a full URL: maybe "/uploads/xyz.jpg"
-    if (path.startsWith("/")) {
-      return `${API_BASE}${path}`;
+    // Not a full URL -> relative path or bare filename
+
+    // Starts with "/" -> treat as root-relative, e.g. "/uploads/xyz.jpg"
+    if (trimmed.startsWith("/")) {
+      return `${API_BASE}${trimmed}`;
     }
-    // Already some other URL string – just return as is
-    return path;
+
+    // No protocol and no leading slash -> probably just a filename "xyz.jpg"
+    if (
+      !trimmed.startsWith("http://") &&
+      !trimmed.startsWith("https://")
+    ) {
+      return `${API_BASE}/uploads/${trimmed}`;
+    }
+
+    // Fallback: already some URL string, just return it
+    return trimmed;
   }
 }
+
+// ------------- AUTH TOKEN HANDLING -------------
+let authToken = null;
+
+export function setAuthToken(token) {
+  authToken = token;
+  try {
+    localStorage.setItem("token", token);
+  } catch {
+    // ignore
+  }
+}
+
+export function clearAuthToken() {
+  authToken = null;
+  try {
+    localStorage.removeItem("token");
+  } catch {
+    // ignore
+  }
+}
+
+// ... keep the REST of your existing api.js file EXACTLY as it was ...
 
 // ---------------- AUTH TOKEN HANDLING ----------------
 
